@@ -10,6 +10,14 @@ There are four different types of jobs:
 * Jobs which are repeated after a certain time interval
 * Jobs which need to run at a specific time, via a cron-like expression
 
+### Forked version change:
+There are two ways you can start using the dropwizard jobs:
+
+* Instantiate the `JobsBundle` and add the bundle. This will scan all the classes for the jobs with annotation.
+* Instantiate the `ConfiguredJobsBundle` which implements `Configuration` class. Then you can define the 
+annotation values in the external `.yml` file. In this way the job annotation values can stay externalized so that 
+it can be configured ia external property file.
+
 ## Installing the bundle
 
 ```
@@ -42,6 +50,45 @@ public MyService() {
     addBundle(new JobsBundle());
 }
 ```
+or you can also configure the jobs via the external properties using `ConfiguredJobsBundle`
+
+To do this your configuration class needs a JobConfiguration instance:
+
+```java
+public class MyServiceConfiguration extends Configuration {
+    @Valid
+    @NotNull
+    private JobConfiguration jobConfiguration = new JobConfiguration();
+    public JobConfiguration getJobConfiguration() {
+        return jobConfiguration;
+    }
+}
+```
+
+and configure the job bundle:
+
+```java
+public MyService() {
+    super("my-service");
+    addBundle(new ConfiguredJobsBundle<MyServiceConfiguration>() {
+        @Override
+        public JobConfiguration getJobConfiguration(MyServiceConfiguration myServiceConfiguration) {
+            return myServiceConfiguration.getJobConfiguration();
+        }
+    });
+}
+```
+
+Your application’s configuration file will then look like this `my-application.yml`:
+```
+jobs:
+  scanUrl: app.scheduler
+  scanIntervals:
+    YourSchedulerClass1: 10s
+    YourSchedulerClass2: 0/2 * * * * ?
+```
+
+You can define the class names of your scheduler classes that needs to be overridden or externalized under the scan intervals section.  
 
 ### Dropwizard 0.6.0-SNAPSHOT
 
@@ -127,6 +174,13 @@ public class OnTestJob extends Job {
 
 * I hacked this in a few hours in the evening, so rather see it as a prototype.
 * Ask the community whether this is useful. It seems, it makes more sense that you use a DI container like Guice in order to inject daos or other persistence layers into the jobs, as you really want to do store stuff.
+
+# Dev Note
+
+* To create jar with all the dependencies locally run:
+`mvn clean compile package`
+
+* This will create jar under corresponding `target/` directory
 
 # Thanks
 

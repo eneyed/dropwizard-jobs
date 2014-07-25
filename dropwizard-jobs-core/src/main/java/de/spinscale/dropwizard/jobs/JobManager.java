@@ -1,43 +1,38 @@
 package de.spinscale.dropwizard.jobs;
 
-import io.dropwizard.lifecycle.Managed;
-
-import java.lang.annotation.Annotation;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import org.quartz.CronScheduleBuilder;
-import org.quartz.JobBuilder;
-import org.quartz.Scheduler;
-import org.quartz.SchedulerException;
-import org.quartz.SimpleScheduleBuilder;
-import org.quartz.Trigger;
-import org.quartz.TriggerBuilder;
-import org.quartz.impl.StdSchedulerFactory;
-import org.reflections.Reflections;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.google.common.collect.Sets;
-
 import de.spinscale.dropwizard.jobs.annotations.Every;
 import de.spinscale.dropwizard.jobs.annotations.On;
 import de.spinscale.dropwizard.jobs.annotations.OnApplicationStart;
 import de.spinscale.dropwizard.jobs.annotations.OnApplicationStop;
 import de.spinscale.dropwizard.jobs.parser.TimeParserUtil;
+import io.dropwizard.lifecycle.Managed;
+import org.quartz.*;
+import org.quartz.impl.StdSchedulerFactory;
+import org.reflections.Reflections;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.lang.annotation.Annotation;
+import java.util.*;
 
 public class JobManager implements Managed {
 
     private static final Logger log = LoggerFactory.getLogger(JobManager.class);
     protected Reflections reflections = null;
     protected Scheduler scheduler;
+    private Map<String, Object> scanIntervals = new HashMap<>();
 
     public JobManager() {
         this("");
     }
 
     public JobManager(String scanUrl) {
+        reflections = new Reflections(scanUrl);
+    }
+
+    public JobManager(String scanUrl, Map<String, Object> scanIntervals) {
+        this.scanIntervals = scanIntervals;
         reflections = new Reflections(scanUrl);
     }
 
@@ -88,7 +83,7 @@ public class JobManager implements Managed {
         for (Class<? extends org.quartz.Job> clazz : onJobClasses) {
             On annotation = clazz.getAnnotation(On.class);
 
-            CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule(annotation.value());
+            CronScheduleBuilder scheduleBuilder = CronScheduleBuilder.cronSchedule(getDuration(clazz, annotation.value()));
             Trigger trigger = TriggerBuilder.newTrigger().withSchedule(scheduleBuilder).build();
             JobBuilder jobBuilder = JobBuilder.newJob(clazz);
             scheduler.scheduleJob(jobBuilder.build(), trigger);
@@ -101,7 +96,8 @@ public class JobManager implements Managed {
 
         for (Class<? extends org.quartz.Job> clazz : everyJobClasses) {
             Every annotation = clazz.getAnnotation(Every.class);
-            int secondDelay = TimeParserUtil.parseDuration(annotation.value());
+
+            int secondDelay = TimeParserUtil.parseDuration(getDuration(clazz, annotation.value()));
             SimpleScheduleBuilder scheduleBuilder = SimpleScheduleBuilder.simpleSchedule()
                     .withIntervalInSeconds(secondDelay).repeatForever();
             Trigger trigger = TriggerBuilder.newTrigger().withSchedule(scheduleBuilder).build();
@@ -122,5 +118,10 @@ public class JobManager implements Managed {
 
     protected Trigger executeNowTrigger() {
         return TriggerBuilder.newTrigger().startNow().build();
+    }
+
+    private String getDuration(Class<? extends org.quartz.Job> clazz, String duration) {
+        String classSimpleName = clazz.getSimpleName();
+        return scanIntervals.containsKey(classSimpleName) ? scanIntervals.get(classSimpleName).toString() : duration;
     }
 }

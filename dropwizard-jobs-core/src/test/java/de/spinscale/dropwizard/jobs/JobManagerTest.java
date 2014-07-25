@@ -1,12 +1,14 @@
 package de.spinscale.dropwizard.jobs;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.*;
 
 public class JobManagerTest {
 
@@ -14,12 +16,7 @@ public class JobManagerTest {
 
     @Before
     public void setUp() throws Exception {
-        jobManager = new JobManager();
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        jobManager = null;
+        jobManager = new JobManager("");
     }
 
     @Test
@@ -27,6 +24,7 @@ public class JobManagerTest {
         ApplicationStartTestJob.results.clear();
         jobManager.start();
         Thread.sleep(1000);
+        jobManager.stop();
         assertThat(ApplicationStartTestJob.results, hasSize(1));
     }
 
@@ -43,7 +41,22 @@ public class JobManagerTest {
         OnTestJob.results.clear();
         jobManager.start();
         Thread.sleep(5000);
-        assertThat(OnTestJob.results, hasSize(greaterThan(5)));
+        jobManager.stop();
+        assertThat(OnTestJob.results, hasSize(isOneOf(5, 6)));
+    }
+
+    @Test
+    public void jobsWithOnAnnotationShouldBeExecutedWithOverriddenValuesWhenPresent() throws Exception {
+        Map<String, Object> intervals = new HashMap<String, Object>() {{
+            put("OnTestJob", "0/2 * * * * ?");
+        }};
+
+        OnTestJob.results.clear();
+        jobManager = new JobManager("", intervals);
+        jobManager.start();
+        Thread.sleep(5000);
+        jobManager.stop();
+        assertThat(OnTestJob.results, hasSize(isOneOf(2, 3)));
     }
 
     @Test
@@ -51,6 +64,22 @@ public class JobManagerTest {
         EveryTestJob.results.clear();
         jobManager.start();
         Thread.sleep(5000);
-        assertThat(EveryTestJob.results, hasSize(greaterThan(5)));
+        jobManager.stop();
+        assertThat(EveryTestJob.results, hasSize(isOneOf(5, 6)));
+    }
+
+    @Test
+    public void jobsWithEveryAnnotationShouldBeExecutedWithOverriddenValuesWhenPresent() throws Exception {
+        Map<String, Object> intervals = new HashMap<String, Object>() {{
+            put("EveryTestJob", "2s");
+        }};
+
+        jobManager = new JobManager("", intervals);
+        EveryTestJob.results.clear();
+
+        jobManager.start();
+        Thread.sleep(5000);
+        jobManager.stop();
+        assertThat(EveryTestJob.results, hasSize(isOneOf(2, 3)));
     }
 }
